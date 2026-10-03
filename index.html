@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coffee Extraction & SCA Control Chart Hub</title>
+  <!-- Chart.js library for high-performance canvas graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      padding: 20px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    /* DARK MODE FOR IKAWA ROASTER */
+    body.dark-mode {
+      background-color: #090d16;
+      color: #f1f5f9;
+    }
+
+    .main-container { max-width: 1350px; margin: 0 auto; }
+
+    /* APP HEADER */
+    .app-header { margin-bottom: 24px; }
+    .app-header h1 { font-size: 1.6rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+    body.dark-mode .app-header h1 { color: #f8fafc; }
+    .app-header p { font-size: 0.875rem; color: #64748b; margin-top: 4px; }
+    body.dark-mode .app-header p { color: #94a3b8; }
+
+    /* DEVICE SWITCHER CARDS */
+    .device-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 768px) { .device-tabs { grid-template-columns: 1fr; } }
+
+    .device-card {
+      background: #ffffff;
+      border: 2px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .device-card:hover { border-color: #2563eb; transform: translateY(-1px); }
+    .device-card.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 4px 12px rgba(37,99,235,0.12); }
+
+    body.dark-mode .device-card {
+      background: #131c2e;
+      border-color: #1e293b;
+      box-shadow: none;
+    }
+    body.dark-mode .device-card:hover { border-color: #f59e0b; }
+    body.dark-mode .device-card.active {
+      border-color: #f59e0b;
+      background: #1c273e;
+      box-shadow: 0 4px 12px rgba(245,158,11,0.15);
+    }
+
+    .device-icon {
+      width: 48px;
+      height: 48px;
+      background: #f1f5f9;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      flex-shrink: 0;
+    }
+    body.dark-mode .device-icon { background: #1e293b; }
+
+    .device-info h3 { font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 2px; }
+    body.dark-mode .device-info h3 { color: #ffffff; }
+    .device-info p { font-size: 0.775rem; color: #64748b; }
+    body.dark-mode .device-info p { color: #94a3b8; }
+
+    .status-pill {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-top: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-disconnected { background: #fee2e2; color: #dc2626; }
+    .status-ready { background: #fef3c7; color: #d97706; }
+    .status-connected { background: #dcfce7; color: #15803d; }
+
+    /* LAYOUT CONTAINERS */
+    .view-section { display: none; }
+    .view-section.active { display: block; }
+
+    /* BREWING TIMER BANNER */
+    .timer-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      border-radius: 14px;
+      padding: 18px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 14px rgba(15,23,42,0.15);
+    }
+    @media (max-width: 640px) { .timer-banner { flex-direction: column; gap: 16px; text-align: center; } }
+
+    .timer-block { text-align: left; }
+    @media (max-width: 640px) { .timer-block { text-align: center; } }
+    .timer-block .label { font-size: 0.7rem; letter-spacing: 1px; color: #93c5fd; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+    .timer-block .digits { font-size: 2.4rem; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #34d399; }
+    .timer-controls { display: flex; gap: 8px; margin-top: 6px; }
+    .btn-timer { border: none; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; cursor: pointer; transition: transform 0.1s; }
+    .btn-timer:active { transform: scale(0.96); }
+    .btn-start { background: #10b981; color: #fff; }
+    .btn-pause { background: #f59e0b; color: #fff; }
+    .btn-reset { background: #ef4444; color: #fff; }
+
+    .banner-stat { text-align: center; }
+    .banner-stat .label { font-size: 0.7rem; letter-spacing: 1px; color: #93c5fd; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+    .banner-stat .value { font-size: 2rem; font-weight: 800; color: #60a5fa; }
+
+    .banner-mode { text-align: right; }
+    @media (max-width: 640px) { .banner-mode { text-align: center; } }
+    .banner-mode .label { font-size: 0.7rem; letter-spacing: 1px; color: #93c5fd; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+    .banner-mode .value { font-size: 1.3rem; font-weight: 800; color: #fbbf24; }
+
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    @media (max-width: 980px) { .grid-2col { grid-template-columns: 1fr; } }
+
+    /* CARD STYLING */
+    .card-light {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .card-light h2 { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+    .btn-connect {
+      width: 100%;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      padding: 11px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-bottom: 18px;
+      transition: background 0.2s;
+    }
+    .btn-connect:hover { background: #1d4ed8; }
+
+    .btn-connect-ikawa {
+      width: 100%;
+      background: #f59e0b;
+      color: #000;
+      border: none;
+      padding: 11px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-bottom: 18px;
+      transition: background 0.2s;
+    }
+    .btn-connect-ikawa:hover { background: #d97706; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.775rem; font-weight: 600; color: #475569; margin-bottom: 6px; }
+    .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-control:focus { border-color: #2563eb; }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+
+    .result-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 10px;
+      margin-bottom: 16px;
+    }
+    .result-box .title { font-size: 0.725rem; font-weight: 800; color: #166534; letter-spacing: 0.5px; text-transform: uppercase; }
+    .result-box .val { font-size: 1.85rem; font-weight: 800; color: #15803d; margin: 4px 0; }
+    .result-box .status { font-size: 0.875rem; font-weight: 700; color: #166534; }
+
+    .btn-save {
+      width: 100%;
+      background: #059669;
+      color: #fff;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-save:hover { background: #047857; }
+
+    /* IKAWA CARDS & STYLES */
+    .ikawa-header-banner {
+      background: #131c2e;
+      border: 1px solid #1e293b;
+      border-radius: 14px;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .ikawa-header-banner h2 { font-size: 1.1rem; color: #ffffff; font-weight: 700; }
+    .ikawa-header-banner p { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+    .badge-f7f { background: #ef4444; color: #fff; font-weight: 800; font-size: 0.75rem; padding: 4px 12px; border-radius: 12px; }
+
+    .subnav-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+    .btn-subtab {
+      background: #131c2e;
+      border: 1px solid #1e293b;
+      color: #ffffff;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-subtab.active { background: #f59e0b; color: #000000; border-color: #f59e0b; }
+
+    .card-dark {
+      background: #131c2e;
+      border: 1px solid #1e293b;
+      border-radius: 16px;
+      padding: 22px;
+      position: relative;
+    }
+    .card-dark h3 { font-size: 1rem; color: #ffffff; font-weight: 700; margin-bottom: 16px; }
+
+    .metrics-circles { display: flex; justify-content: space-around; margin-bottom: 20px; }
+    .circle-item {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .circle-item.active-dtr { border-color: #f59e0b; }
+    .circle-item .val { font-size: 0.95rem; font-weight: 800; color: #ffffff; }
+    .circle-item .lbl { font-size: 0.6rem; color: #94a3b8; margin-top: 2px; text-transform: uppercase; }
+
+    .info-list-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #1e293b;
+      font-size: 0.85rem;
+    }
+    .info-list-row .lbl { color: #94a3b8; }
+    .info-list-row .val { color: #ffffff; font-weight: 700; }
+
+    .floating-dtr {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      background: #000000;
+      border: 2px solid #ffffff;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .floating-dtr span { font-size: 0.55rem; color: #94a3b8; font-weight: 800; }
+    .floating-dtr div { font-size: 0.85rem; color: #ffffff; font-weight: 800; }
+
+    /* TABLES */
+    .table-container { overflow-x: auto; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 12px 14px; font-size: 0.85rem; border-bottom: 1px solid #e2e8f0; }
+    body.dark-mode th, body.dark-mode td { border-bottom-color: #1e293b; }
+    th { font-weight: 700; color: #64748b; background: #f8fafc; }
+    body.dark-mode th { background: #1e293b; color: #94a3b8; }
+    td { color: #1e293b; }
+    body.dark-mode td { color: #f1f5f9; }
+  </style>
+</head>
+<body>
+
+  <div class="main-container">
+    <!-- APP HEADER -->
+    <div class="app-header">
+      <h1>☕ Coffee Extraction & SCA Control Chart Hub</h1>
+      <p>Visual Profil Aliran Ekstraksi Kopi (SOUR, SWEET SPOT, BITTER) & Pemetaan SCA Standard Matrix</p>
+    </div>
+
+    <!-- DEVICE SELECTION TABS -->
+    <div class="device-tabs">
+      <div class="device-card active" id="tabAcaia" onclick="switchDevice('acaia')">
+        <div class="device-icon">⚖️</div>
+        <div class="device-info">
+          <h3>Acaia Pearl / Lunar</h3>
+          <p>BLE Smart Auto-Tracker</p>
+          <span class="status-pill status-disconnected" id="pillAcaia">Disconnected</span>
+        </div>
+      </div>
+
+      <div class="device-card" id="tabTimemore" onclick="switchDevice('timemore')">
+        <div class="device-icon">⏱️</div>
+        <div class="device-info">
+          <h3>Timemore Black Mirror</h3>
+          <p>Smart Manual Pour Scale</p>
+          <span class="status-pill status-ready" id="pillTimemore">Ready Mode</span>
+        </div>
+      </div>
+
+      <div class="device-card" id="tabIkawa" onclick="switchDevice('ikawa')">
+        <div class="device-icon">🔥</div>
+        <div class="device-info">
+          <h3>IKAWA Sample Roaster</h3>
+          <p>Roast Profile & Moisture Log</p>
+          <span class="status-pill status-disconnected" id="pillIkawa">Disconnected</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= BREWING VIEW (ACAIA & TIMEMORE) ================= -->
+    <div id="viewBrewing" class="view-section active">
+      
+      <!-- Stopwatch & Quick Metrics Banner -->
+      <div class="timer-banner">
+        <div class="timer-block">
+          <div class="label">Waktu Ekstraksi (Stopwatch)</div>
+          <div class="digits" id="timerDisplay">00:00</div>
+          <div class="timer-controls">
+            <button class="btn-timer btn-start" onclick="startTimer()">Start</button>
+            <button class="btn-timer btn-pause" onclick="pauseTimer()">Pause</button>
+            <button class="btn-timer btn-reset" onclick="resetTimer()">Reset</button>
+          </div>
+        </div>
+        <div class="banner-stat">
+          <div class="label">Hasil / Liquid Yield</div>
+          <div class="value" id="topYieldDisplay">225.0 g</div>
+        </div>
+        <div class="banner-mode">
+          <div class="label">Active Device</div>
+          <div class="value" id="topActiveMode">ACAIA BLE</div>
+        </div>
+      </div>
+
+      <div class="grid-2col">
+        <!-- Form Log Ekstraksi -->
+        <div class="card-light">
+          <h2>⚙️ Form Parameter Seduhan</h2>
+          <button class="btn-connect" onclick="connectBluetooth()">⚡ Hubungkan Bluetooth Scale</button>
+
+          <div class="form-group">
+            <label>Nama Beans / Origin Kopi</label>
+            <input type="text" class="form-control" id="beanInput" value="Ethiopia Yirgacheffe V60">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Dosis Kopi Bubuk (g)</label>
+              <input type="number" class="form-control" id="doseInput" value="15.0" step="0.1" oninput="calculateExtraction()">
+            </div>
+            <div class="form-group">
+              <label>Yield Ekstraksi / Liquid (g)</label>
+              <input type="number" class="form-control" id="yieldInput" value="225.0" step="0.1" oninput="calculateExtraction()">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Waktu Ekstraksi (Detik)</label>
+              <input type="number" class="form-control" id="timeInput" value="150" oninput="calculateExtraction()">
+            </div>
+            <div class="form-group">
+              <label>TDS % (Refractometer)</label>
+              <input type="number" class="form-control" id="tdsInput" value="1.35" step="0.01" oninput="calculateExtraction()">
+            </div>
+          </div>
+
+          <div class="result-box">
+            <div class="title">Extraction Yield Rate (%)</div>
+            <div class="val" id="extRateVal">20.25 %</div>
+            <div class="status" id="extStatusVal">Status: Optimal & Balanced</div>
+          </div>
+
+          <button class="btn-save" onclick="saveBrewLog()">Simpan Log Seduh Ke Database</button>
+        </div>
+
+        <!-- Grafis Profil Ekstraksi (Yield vs Time) -->
+        <div class="card-light">
+          <h2>📈 Grafis Profil Ekstraksi (Yield vs Time)</h2>
+          <div style="height: 330px; position: relative;">
+            <canvas id="yieldChartCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCA Brewing Control Chart Matrix -->
+      <div class="card-light" style="margin-bottom: 24px;">
+        <h2>🎯 SCA Brewing Control Chart Matrix</h2>
+        <p style="font-size: 0.825rem; color: #64748b; margin-bottom: 16px;">Pemetaan Kualitas Seduhan Standar SCA (Target Ideal: 18% – 22% Extraction Yield, 1.15% – 1.45% TDS).</p>
+        <div style="height: 420px; position: relative;">
+          <canvas id="scaMatrixCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Riwayat Log Seduh -->
+      <div class="card-light">
+        <h2>📜 Riwayat Log Seduh & Ekstraksi Kopi</h2>
+        <div class="table-container">
+          <table id="brewHistoryTable">
+            <thead>
+              <tr>
+                <th>Perangkat</th>
+                <th>Beans</th>
+                <th>Dosis (g)</th>
+                <th>Yield (g)</th>
+                <th>Waktu (s)</th>
+                <th>TDS (%)</th>
+                <th>Ext Rate (%)</th>
+                <th>Zona Rasa</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Acaia Pearl</b></td>
+                <td>Ethiopia Yirgacheffe V60</td>
+                <td>15.0 g</td>
+                <td>225.0 g</td>
+                <td>150s</td>
+                <td>1.35%</td>
+                <td style="color: #059669; font-weight: bold;">20.25%</td>
+                <td style="color: #059669; font-weight: bold;">Optimal & Balanced</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ================= IKAWA VIEW (DARK MODE) ================= -->
+    <div id="viewIkawa" class="view-section">
+      
+      <div class="ikawa-header-banner">
+        <div>
+          <h2>Back IKAWA - Sample Roast Natural Process</h2>
+          <p>Preheat Temp: 149°C · End Temp: 216°C · End Time: 4:48 · DT: 0:36</p>
+        </div>
+        <span class="badge-f7f">PROFILE F7F</span>
+      </div>
+
+      <div class="subnav-tabs">
+        <button class="btn-subtab active" id="btnSubCurve" onclick="switchIkawaSubGraph('curve')">Roast Profile Curve</button>
+        <button class="btn-subtab" id="btnSubMoisture" onclick="switchIkawaSubGraph('moisture')">Moisture Release Graph</button>
+      </div>
+
+      <div class="grid-2col">
+        <div class="card-dark">
+          <h3>Roast Log Details</h3>
+          <button class="btn-connect-ikawa" onclick="connectBluetooth()">🔥 Hubungkan Bluetooth IKAWA</button>
+
+          <div class="metrics-circles">
+            <div class="circle-item">
+              <div class="val" style="color: #94a3b8;">N/A</div>
+              <div class="lbl">Drying</div>
+            </div>
+            <div class="circle-item">
+              <div class="val" style="color: #94a3b8;">N/A</div>
+              <div class="lbl">Maillard</div>
+            </div>
+            <div class="circle-item active-dtr">
+              <div class="val">12.6%</div>
+              <div class="lbl">DTR</div>
+            </div>
+          </div>
+
+          <div class="info-list-row">
+            <span class="lbl">Preheat Temp</span>
+            <span class="val">149°C</span>
+          </div>
+          <div class="info-list-row">
+            <span class="lbl">Turning Point</span>
+            <span class="val">0:30 (85°C)</span>
+          </div>
+          <div class="info-list-row">
+            <span class="lbl">First Crack</span>
+            <span class="val" style="color: #ef4444;">4:12 (206°C)</span>
+          </div>
+          <div class="info-list-row">
+            <span class="lbl">End Temp / Time</span>
+            <span class="val">216°C / 4:48</span>
+          </div>
+          <div class="info-list-row">
+            <span class="lbl">Time After First</span>
+            <span class="val">0:36</span>
+          </div>
+          <div class="info-list-row">
+            <span class="lbl">Peak Moisture Release</span>
+            <span class="val" style="color: #ef4444;">0.06610 g/m³ s</span>
+          </div>
+        </div>
+
+        <div class="card-dark">
+          <h3 id="ikawaChartTitle">Roast Profile Curve</h3>
+          
+          <div class="floating-dtr" id="floatingDtrBadge">
+            <span>DTR</span>
+            <div>12.6%</div>
+          </div>
+
+          <div style="height: 330px; position: relative;">
+            <canvas id="ikawaChartCanvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let activeDevice = 'acaia';
+    let currentIkawaSubGraph = 'curve';
+    let timerInterval = null;
+    let secondsElapsed = 0;
+
+    let yieldChartObj = null;
+    let scaMatrixObj = null;
+    let ikawaChartObj = null;
+
+    // --- BLUETOOTH CONNECTIVITY SIMULATION ---
+    async function connectBluetooth() {
+      if (!navigator.bluetooth) {
+        alert("❌ Browser Anda tidak mendukung Web Bluetooth API.\n\nHarap gunakan Google Chrome atau Microsoft Edge.");
+        return;
+      }
+
+      try {
+        const targetName = activeDevice === 'ikawa' ? 'Roaster IKAWA' : (activeDevice === 'acaia' ? 'Timbangan Acaia' : 'Timbangan Timemore');
+        const device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['battery_service', '0000180f-0000-1000-8000-00805f9b34fb']
+        });
+
+        const pillId = activeDevice === 'acaia' ? 'pillAcaia' : (activeDevice === 'timemore' ? 'pillTimemore' : 'pillIkawa');
+        const activePill = document.getElementById(pillId);
+        if (activePill) {
+          activePill.className = "status-pill status-connected";
+          activePill.innerText = "CONNECTED";
+        }
+
+        alert(`✅ Berhasil terhubung ke: ${device.name || targetName}`);
+      } catch (error) {
+        if (error.name !== "NotFoundError") {
+          alert("⚠️ Bluetooth Connection Notice:\n" + error.message);
+        }
+      }
+    }
+
+    // --- PLUGIN CUSTOM 1: EXTRACTION PHASES (SOUR, SWEET SPOT, BITTER) UNDER BLUE CURVE ---
+    const extractionPhasesPlugin = {
+      id: 'extractionPhasesPlugin',
+      beforeDatasetsDraw(chart) {
+        if (activeDevice === 'ikawa') return;
+        const { ctx, scales: { y } } = chart;
+        const meta = chart.getDatasetMeta(0);
+        if (!meta.data || meta.data.length < 6) return;
+
+        ctx.save();
+
+        const p0 = meta.data[0];
+        const p1 = meta.data[1];
+        const p2 = meta.data[2];
+        const p3 = meta.data[3];
+        const p4 = meta.data[4];
+        const p5 = meta.data[5];
+
+        const bottomY = y.bottom;
+
+        // 1. FASE SOUR (Hijau) - Di bawah kurva dari p0 -> p2
+        ctx.beginPath();
+        ctx.moveTo(p0.x, bottomY);
+        ctx.lineTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p2.x, bottomY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(74, 222, 128, 0.55)'; // Soft Green
+        ctx.fill();
+
+        // 2. FASE SWEET SPOT (Kuning) - Di bawah kurva dari p2 -> p4
+        ctx.beginPath();
+        ctx.moveTo(p2.x, bottomY);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.lineTo(p4.x, bottomY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(250, 204, 21, 0.65)'; // Soft Yellow
+        ctx.fill();
+
+        // 3. FASE BITTER (Cokelat) - Di bawah kurva dari p4 -> p5
+        ctx.beginPath();
+        ctx.moveTo(p4.x, bottomY);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.lineTo(p5.x, p5.y);
+        ctx.lineTo(p5.x, bottomY);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(180, 83, 9, 0.55)'; // Soft Brown
+        ctx.fill();
+
+        // PENULISAN TEKS LABELS SOUR, SWEET SPOT, BITTER DI DALAM AREA WARNA
+        ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Teks "SOUR" di dalam area hijau
+        const sourCenterX = (p0.x + p2.x) / 2;
+        const sourMidY = (bottomY + ((p0.y + p2.y) / 2)) / 2;
+        ctx.fillStyle = '#14532d'; // Darker green font for contrast
+        ctx.fillText('SOUR', sourCenterX, sourMidY);
+
+        // Teks "SWEET SPOT" di dalam area kuning
+        const sweetCenterX = (p2.x + p4.x) / 2;
+        const sweetMidY = (bottomY + ((p2.y + p4.y) / 2)) / 2;
+        ctx.fillStyle = '#713f12'; // Darker golden font for contrast
+        ctx.fillText('SWEET SPOT', sweetCenterX, sweetMidY);
+
+        // Teks "BITTER" di dalam area cokelat
+        const bitterCenterX = (p4.x + p5.x) / 2;
+        const bitterMidY = (bottomY + ((p4.y + p5.y) / 2)) / 2;
+        ctx.fillStyle = '#451a03'; // Dark brown font for contrast
+        ctx.fillText('BITTER', bitterCenterX, bitterMidY);
+
+        ctx.restore();
+      }
+    };
+
+    // --- PLUGIN CUSTOM 2: SCA CONTROL CHART GRID MATRIX ---
+    const scaGridPlugin = {
+      id: 'scaGridPlugin',
+      afterDraw(chart) {
+        if (activeDevice === 'ikawa') return;
+        const { ctx, chartArea, scales: { x, y } } = chart;
+
+        const x18 = x.getPixelForValue(18);
+        const x22 = x.getPixelForValue(22);
+        const y115 = y.getPixelForValue(1.15);
+        const y145 = y.getPixelForValue(1.45);
+
+        ctx.save();
+        
+        // Dynamic target rectangle fill
+        ctx.fillStyle = 'rgba(219, 234, 254, 0.5)';
+        ctx.fillRect(x18, y145, x22 - x18, y115 - y145);
+        
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x18, y145, x22 - x18, y115 - y145);
+
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Zone texts
+        ctx.fillStyle = '#1e40af';
+        ctx.fillText('IDEAL / OPTIMAL', (x18 + x22) / 2, (y115 + y145) / 2);
+
+        ctx.fillStyle = '#1d4ed8';
+        ctx.fillText('UNDER-EXTRACTED', (x.getPixelForValue(14) + x18) / 2, (y115 + y145) / 2);
+        
+        ctx.fillStyle = '#b91c1c';
+        ctx.fillText('OVER-EXTRACTED', (x22 + x.getPixelForValue(26)) / 2, (y115 + y145) / 2);
+
+        ctx.fillStyle = '#b91c1c';
+        ctx.fillText('STRONG (Kental)', (x18 + x22) / 2, (chartArea.top + y145) / 2);
+
+        ctx.fillStyle = '#d97706';
+        ctx.fillText('WEAK (Encer)', (x18 + x22) / 2, (y115 + chartArea.bottom) / 2);
+
+        ctx.restore();
+      }
+    };
+
+    // --- PLUGIN CUSTOM 3: IKAWA FIRST CRACK MARKER ---
+    const ikawaFirstCrackPlugin = {
+      id: 'ikawaFirstCrackPlugin',
+      afterDraw(chart) {
+        if (activeDevice !== 'ikawa') return;
+        const { ctx, scales: { x, y } } = chart;
+        const xPos = x.getPixelForValue('4:12');
+        if (!xPos) return;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.moveTo(xPos, y.top);
+        ctx.lineTo(xPos, y.bottom);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('1st crack 4:12', xPos, y.top + 14);
+        ctx.fillText('206°C', xPos, y.top + 26);
+        ctx.restore();
+      }
+    };
+
+    function initCharts() {
+      // 1. YIELD VS TIME CHART (HIGH CONTRAST BLUE CURVE & INNER PHASE LABELS)
+      const ctxYield = document.getElementById('yieldChartCanvas').getContext('2d');
+      yieldChartObj = new Chart(ctxYield, {
+        type: 'line',
+        data: {
+          labels: ['0s', '30s', '60s', '90s', '120s', '150s'],
+          datasets: [{
+            label: 'Yield Weight (g)',
+            data: [0, 40, 95, 150, 195, 225],
+            borderColor: '#2563eb', // High-contrast BLUE curve
+            borderWidth: 3.5,
+            fill: false, // Custom fill handled via extractionPhasesPlugin
+            tension: 0.2,
+            pointBackgroundColor: '#1d4ed8',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { 
+              grid: { color: '#f1f5f9' },
+              title: { display: true, text: 'Brew Time (Detik)', font: { weight: 'bold', size: 11 } } 
+            },
+            y: { 
+              grid: { color: '#f1f5f9' }, 
+              title: { display: true, text: 'Liquid Yield (g)', font: { weight: 'bold', size: 11 } },
+              min: 0, 
+              max: 250 
+            }
+          },
+          plugins: {
+            legend: { display: true, position: 'top' }
+          }
+        },
+        plugins: [extractionPhasesPlugin]
+      });
+
+      // 2. SCA CONTROL CHART MATRIX
+      const ctxSca = document.getElementById('scaMatrixCanvas').getContext('2d');
+      scaMatrixObj = new Chart(ctxSca, {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'Hasil Seduhan Saat Ini',
+            data: [{ x: 20.25, y: 1.35 }],
+            backgroundColor: '#dc2626',
+            borderColor: '#ffffff',
+            borderWidth: 2,
+            pointRadius: 9
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { title: { display: true, text: 'Extraction Yield Rate (%)', font: { weight: 'bold' } }, min: 14, max: 26 },
+            y: { title: { display: true, text: 'Coffee Strength / TDS (%)', font: { weight: 'bold' } }, min: 0.90, max: 1.70 }
+          }
+        },
+        plugins: [scaGridPlugin]
+      });
+
+      // 3. IKAWA ROAST CHART
+      const ctxIkawa = document.getElementById('ikawaChartCanvas').getContext('2d');
+      ikawaChartObj = new Chart(ctxIkawa, {
+        type: 'line',
+        data: getIkawaCurveData(),
+        options: getIkawaChartOptions(),
+        plugins: [ikawaFirstCrackPlugin]
+      });
+    }
+
+    // --- REALTIME CALCULATIONS & GRAPH UPDATES ---
+    function calculateExtraction() {
+      const dose = parseFloat(document.getElementById('doseInput').value) || 0;
+      const yieldWg = parseFloat(document.getElementById('yieldInput').value) || 0;
+      const totalTime = parseFloat(document.getElementById('timeInput').value) || 0;
+      const tds = parseFloat(document.getElementById('tdsInput').value) || 0;
+
+      document.getElementById('topYieldDisplay').innerText = yieldWg.toFixed(1) + ' g';
+
+      // Update Yield Chart Points
+      if (yieldChartObj && totalTime > 0) {
+        const stepTime = totalTime / 5;
+        yieldChartObj.data.labels = [
+          '0s',
+          Math.round(stepTime * 1) + 's',
+          Math.round(stepTime * 2) + 's',
+          Math.round(stepTime * 3) + 's',
+          Math.round(stepTime * 4) + 's',
+          Math.round(totalTime) + 's'
+        ];
+
+        yieldChartObj.data.datasets[0].data = [
+          0,
+          Number((yieldWg * 0.18).toFixed(1)),
+          Number((yieldWg * 0.42).toFixed(1)),
+          Number((yieldWg * 0.67).toFixed(1)),
+          Number((yieldWg * 0.87).toFixed(1)),
+          yieldWg
+        ];
+
+        if (yieldWg > 250) {
+          yieldChartObj.options.scales.y.max = Math.ceil(yieldWg * 1.15);
+        } else {
+          yieldChartObj.options.scales.y.max = 250;
+        }
+
+        yieldChartObj.update();
+      }
+
+      // Update Extraction Yield Rate & SCA Scatter Plot
+      if (dose > 0) {
+        const extRate = ((yieldWg * tds) / dose).toFixed(2);
+        document.getElementById('extRateVal').innerText = extRate + ' %';
+
+        scaMatrixObj.data.datasets[0].data = [{ x: parseFloat(extRate), y: tds }];
+        scaMatrixObj.update();
+
+        const statusEl = document.getElementById('extStatusVal');
+        if (extRate >= 18 && extRate <= 22 && tds >= 1.15 && tds <= 1.45) {
+          statusEl.innerText = "Status: Optimal & Balanced";
+          statusEl.style.color = "#15803d";
+        } else if (extRate < 18) {
+          statusEl.innerText = "Status: Under-Extracted";
+          statusEl.style.color = "#b91c1c";
+        } else {
+          statusEl.innerText = "Status: Over-Extracted";
+          statusEl.style.color = "#b91c1c";
+        }
+      }
+    }
+
+    // --- DEVICE SWITCHING ---
+    function switchDevice(device) {
+      activeDevice = device;
+      document.querySelectorAll('.device-card').forEach(card => card.classList.remove('active'));
+      document.getElementById('tab' + capitalize(device)).classList.add('active');
+
+      const viewBrewing = document.getElementById('viewBrewing');
+      const viewIkawa = document.getElementById('viewIkawa');
+
+      if (device === 'ikawa') {
+        document.body.classList.add('dark-mode');
+        viewBrewing.classList.remove('active');
+        viewIkawa.classList.add('active');
+      } else {
+        document.body.classList.remove('dark-mode');
+        viewIkawa.classList.remove('active');
+        viewBrewing.classList.add('active');
+
+        if (device === 'acaia') {
+          document.getElementById('topActiveMode').innerText = "ACAIA BLE";
+          document.getElementById('beanInput').value = "Ethiopia Yirgacheffe V60";
+        } else {
+          document.getElementById('topActiveMode').innerText = "TIMEMORE MIRROR";
+          document.getElementById('beanInput').value = "Colombia Pink Bourbon Pour-Over";
+        }
+        calculateExtraction();
+      }
+    }
+
+    function switchIkawaSubGraph(type) {
+      currentIkawaSubGraph = type;
+      document.getElementById('btnSubCurve').classList.toggle('active', type === 'curve');
+      document.getElementById('btnSubMoisture').classList.toggle('active', type === 'moisture');
+
+      const floatingBadge = document.getElementById('floatingDtrBadge');
+
+      if (type === 'curve') {
+        document.getElementById('ikawaChartTitle').innerText = "Roast Profile Curve";
+        floatingBadge.style.display = 'flex';
+        ikawaChartObj.data = getIkawaCurveData();
+      } else {
+        document.getElementById('ikawaChartTitle').innerText = "Moisture Release Graph";
+        floatingBadge.style.display = 'none';
+        ikawaChartObj.data = getIkawaMoistureData();
+      }
+      ikawaChartObj.update();
+    }
+
+    function getIkawaCurveData() {
+      return {
+        labels: ['0:00', '0:30', '1:00', '2:00', '3:00', '4:12', '4:48'],
+        datasets: [
+          {
+            label: 'Air Temp (°C)',
+            data: [149, 250, 220, 240, 260, 290, 200],
+            borderColor: '#f59e0b',
+            borderWidth: 2,
+            tension: 0.4,
+            pointRadius: 0
+          },
+          {
+            label: 'Exhaust Temp (°C)',
+            data: [149, 85, 120, 155, 180, 206, 216],
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.25)',
+            fill: true,
+            borderWidth: 2.5,
+            tension: 0.3,
+            pointRadius: 0
+          }
+        ]
+      };
+    }
+
+    function getIkawaMoistureData() {
+      return {
+        labels: ['0:00', '1:00', '2:00', '3:00', '4:12', '4:48'],
+        datasets: [
+          {
+            label: 'Rate of Moisture Release (g/m³ s)',
+            data: [0.02, 0.04, 0.015, 0.025, 0.0661, 0.02],
+            borderColor: '#ec4899',
+            borderWidth: 2,
+            tension: 0.3,
+            pointRadius: 3
+          },
+          {
+            label: 'Accumulated Moisture (g/m³)',
+            data: [18, 19, 18, 19, 22, 23],
+            borderColor: '#94a3b8',
+            borderWidth: 1.5,
+            tension: 0.2,
+            pointRadius: 0
+          }
+        ]
+      };
+    }
+
+    function getIkawaChartOptions() {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+          y: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+        },
+        plugins: { legend: { labels: { color: '#ffffff' } } }
+      };
+    }
+
+    // --- STOPWATCH CONTROLS ---
+    function startTimer() {
+      if (!timerInterval) {
+        timerInterval = setInterval(() => {
+          secondsElapsed++;
+          const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+          const secs = String(secondsElapsed % 60).padStart(2, '0');
+          document.getElementById('timerDisplay').innerText = `${mins}:${secs}`;
+          document.getElementById('timeInput').value = secondsElapsed;
+          calculateExtraction();
+        }, 1000);
+      }
+    }
+
+    function pauseTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      secondsElapsed = 0;
+      document.getElementById('timerDisplay').innerText = "00:00";
+      document.getElementById('timeInput').value = 0;
+      calculateExtraction();
+    }
+
+    // --- SAVE LOG HISTORY ---
+    function saveBrewLog() {
+      const tbody = document.querySelector('#brewHistoryTable tbody');
+      const devName = activeDevice === 'acaia' ? 'Acaia Pearl' : 'Timemore Mirror';
+      const bean = document.getElementById('beanInput').value;
+      const dose = document.getElementById('doseInput').value;
+      const yieldWg = document.getElementById('yieldInput').value;
+      const time = document.getElementById('timeInput').value;
+      const tds = document.getElementById('tdsInput').value;
+      const ext = document.getElementById('extRateVal').innerText;
+      const status = document.getElementById('extStatusVal').innerText.replace('Status: ', '');
+
+      const newRow = `
+        <tr>
+          <td><b>${devName}</b></td>
+          <td>${bean}</td>
+          <td>${dose} g</td>
+          <td>${yieldWg} g</td>
+          <td>${time}s</td>
+          <td>${tds}%</td>
+          <td style="color: #059669; font-weight: bold;">${ext}</td>
+          <td style="color: #059669; font-weight: bold;">${status}</td>
+        </tr>
+      `;
+      tbody.insertAdjacentHTML('afterbegin', newRow);
+      alert('✅ Log seduhan berhasil disimpan!');
+    }
+
+    function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+    document.addEventListener('DOMContentLoaded', initCharts);
+  </script>
+</body>
+</html>
